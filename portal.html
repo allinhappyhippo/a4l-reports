@@ -1,0 +1,92 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Store Ops · Sign in</title><style>
+*{box-sizing:border-box}
+body{margin:0;background:#f7f5f0;color:#1b1a17;font-family:-apple-system,"PingFang SC",Helvetica,Arial,sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{background:#fffefb;border:1px solid #ddd7cd;border-radius:14px;padding:1.6rem 1.4rem;width:100%;max-width:22rem;
+  box-shadow:0 2px 14px rgba(60,50,30,.06)}
+h1{font-size:1.15rem;margin:0 0 .2rem}
+.sub{color:#5d574f;font-size:.78rem;margin:0 0 1.1rem}
+label{display:block;font-size:.74rem;color:#5d574f;margin:.7rem 0 .25rem;font-weight:650}
+input{width:100%;border:1.5px solid #ddd7cd;border-radius:9px;padding:.6rem .7rem;font-size:1rem;font-family:inherit;
+  background:#fff}
+input:focus{outline:none;border-color:#3d6b8f}
+button.go{width:100%;margin-top:1.1rem;border:0;border-radius:9px;padding:.7rem;font-size:1rem;font-weight:700;
+  font-family:inherit;background:#3d6b8f;color:#fff;cursor:pointer}
+button.go:disabled{opacity:.55}
+.err{color:#b3402b;font-size:.8rem;margin-top:.6rem;min-height:1.1em}
+.choose button{width:100%;margin-top:.6rem;border:1.5px solid #ddd7cd;border-radius:10px;padding:.85rem;
+  font-size:.95rem;font-weight:650;font-family:inherit;background:#fffefb;cursor:pointer;text-align:left}
+.choose button:hover{border-color:#3d6b8f}
+.meta{color:#8d8579;font-size:.7rem;margin-top:1rem;text-align:center}
+.meta a{color:#3d6b8f;cursor:pointer}
+.brand{color:#8d8579;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.4rem}
+#load{display:none;text-align:center;color:#5d574f;font-size:.9rem}
+</style></head><body>
+<div class="card" id="card">
+<div class="brand">Ladder Labs · Store Ops</div>
+<div id="form">
+<h1>Sign in</h1>
+<p class="sub">Use the account your manager gave you.</p>
+<label>Email</label><input id="em" type="email" autocomplete="username" inputmode="email">
+<label>Password</label><input id="pw" type="password" autocomplete="current-password">
+<button class="go" id="go">Sign in →</button>
+<div class="err" id="err"></div>
+</div>
+<div id="pick" style="display:none">
+<h1>Welcome</h1>
+<p class="sub" id="who"></p>
+<div class="choose">
+<button data-p="staff">📦 Receiving · Repair · Inventory</button>
+<button data-p="owner">📊 Owner dashboard</button>
+</div>
+<div class="meta"><a id="out">Sign out</a></div>
+</div>
+<div id="load">Loading your workspace…</div>
+</div>
+<script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+const SB='https://alaodwyebiddusazvela.supabase.co';
+const ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFsYW9kd3llYmlkZHVzYXp2ZWxhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5MTU3MTYsImV4cCI6MjA5OTQ5MTcxNn0.ecry3u0Sp8DP-G__R5OmPg6GSwpqPQbWAdeHggQrTWI';
+const FN=SB+'/functions/v1/portal';
+const sb=createClient(SB,ANON);
+const $=id=>document.getElementById(id);
+const want=new URLSearchParams(location.search).get('page');
+const show=id=>{['form','pick','load'].forEach(x=>$(x).style.display=x===id?'block':'none');};
+
+async function boot(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(session) after(session); else show('form');
+}
+async function after(session){
+  show('load');
+  let who;
+  try{
+    who=await fetch(FN+'?whoami=1',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json());
+  }catch(e){ $('err').textContent='Network error — try again.'; show('form'); return; }
+  if(who.error){ await sb.auth.signOut(); $('err').textContent='This account has no store access yet.'; show('form'); return; }
+  if(want&&who.pages.includes(want)) return open(want,session);
+  if(who.pages.length===1) return open(who.pages[0],session);
+  $('who').textContent=who.email+' · '+who.store;
+  show('pick');
+  document.querySelectorAll('.choose button').forEach(b=>b.onclick=()=>open(b.dataset.p,session));
+  $('out').onclick=async()=>{await sb.auth.signOut();show('form');};
+}
+async function open(page,session){
+  show('load');
+  const r=await fetch(FN+'?page='+page,{headers:{Authorization:'Bearer '+session.access_token}});
+  if(!r.ok){ $('err').textContent='Could not load page ('+r.status+') — tell Phil.'; show('form'); return; }
+  const html=await r.text();
+  document.open();document.write(html);document.close();
+}
+$('go').onclick=async()=>{
+  $('go').disabled=true;$('err').textContent='';
+  const {data,error}=await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+  $('go').disabled=false;
+  if(error){ $('err').textContent='Wrong email or password.'; return; }
+  after(data.session);
+};
+$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')$('go').click();});
+boot();
+</script></body></html>
