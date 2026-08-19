@@ -67,11 +67,16 @@ async function boot(){
 }
 async function after(session){
   show('load');
-  let who;
-  try{
-    who=await fetch(FN+'?whoami=1',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json());
-  }catch(e){ $('err').textContent='Network error — try again.'; show('form'); return; }
-  if(who.error){ await sb.auth.signOut(); $('err').textContent='This account has no store access yet.'; show('form'); return; }
+  const wkey='portal-who-'+session.user.id;
+  let who=null;
+  try{ who=JSON.parse(localStorage.getItem(wkey)||'null'); }catch(e){}
+  if(!who){
+    try{
+      who=await fetch(FN+'?whoami=1',{headers:{Authorization:'Bearer '+session.access_token}}).then(r=>r.json());
+    }catch(e){ $('err').textContent='Network error — try again.'; show('form'); return; }
+    if(who.error){ await sb.auth.signOut(); $('err').textContent='This account has no store access yet.'; show('form'); return; }
+    try{ localStorage.setItem(wkey,JSON.stringify(who)); }catch(e){}
+  }
   if(want&&who.pages.includes(want)) return open(want,session);
   if(who.pages.length===1) return open(who.pages[0],session);
   $('who').textContent=who.email+' · '+who.store;
@@ -81,9 +86,22 @@ async function after(session){
 }
 async function open(page,session){
   show('load');
-  const r=await fetch(FN+'?page='+page,{headers:{Authorization:'Bearer '+session.access_token}});
-  if(!r.ok){ $('err').textContent='Could not load page ('+r.status+') — tell Phil.'; show('form'); return; }
-  const html=await r.text();
+  const H={Authorization:'Bearer '+session.access_token};
+  let html=null;
+  try{
+    const r=await fetch(FN+'?page='+page+'&v=2',{headers:H});
+    if(r.status===403||r.status===401){ localStorage.removeItem('portal-who-'+session.user.id); }
+    if(r.ok){
+      const j=await r.json();
+      if(j.url){ const r2=await fetch(j.url); if(r2.ok) html=await r2.text(); }
+      else if(typeof j==='string') html=j;
+    }
+  }catch(e){}
+  if(!html){
+    const r=await fetch(FN+'?page='+page,{headers:H});
+    if(!r.ok){ $('err').textContent='Could not load page ('+r.status+') — tell Phil.'; show('form'); return; }
+    html=await r.text();
+  }
   document.open();document.write(html);document.close();
 }
 $('go').onclick=async()=>{
