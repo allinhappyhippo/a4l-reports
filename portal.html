@@ -56,6 +56,12 @@ const want=new URLSearchParams(location.search).get('page');
 const show=id=>{['form','pick','load'].forEach(x=>$(x).style.display=x===id?'block':'none');};
 
 async function boot(){
+  if(new URLSearchParams(location.search).get('logout')){
+    await sb.auth.signOut();
+    history.replaceState({},'','portal.html');
+    $('err').textContent='Signed out.';
+    show('form'); return;
+  }
   const {data:{session}}=await sb.auth.getSession();
   if(session) after(session); else show('form');
 }
