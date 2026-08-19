@@ -29,7 +29,7 @@ button.go:disabled{opacity:.55}
 <div id="form">
 <h1>Sign in</h1>
 <p class="sub">Use the account your manager gave you.</p>
-<label>Email</label><input id="em" type="email" autocomplete="username" inputmode="email">
+<label>Account</label><input id="em" type="text" autocomplete="username" autocapitalize="none" placeholder="e.g. joplin.staff">
 <label>Password</label><input id="pw" type="password" autocomplete="current-password">
 <button class="go" id="go">Sign in →</button>
 <div class="err" id="err"></div>
@@ -79,7 +79,7 @@ async function after(session){
   }
   if(want&&who.pages.includes(want)) return open(want,session);
   if(who.pages.length===1) return open(who.pages[0],session);
-  $('who').textContent=who.email+' · '+who.store;
+  $('who').textContent=String(who.email||'').split('@')[0]+' · '+who.store;
   show('pick');
   document.querySelectorAll('.choose button').forEach(b=>b.onclick=()=>open(b.dataset.p,session));
   $('out').onclick=async()=>{await sb.auth.signOut();show('form');};
@@ -106,7 +106,9 @@ async function open(page,session){
 }
 $('go').onclick=async()=>{
   $('go').disabled=true;$('err').textContent='';
-  const {data,error}=await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+  let acct=$('em').value.trim().toLowerCase();
+  if(!acct.includes('@'))acct+='@portal.ladder-labs.com';
+  const {data,error}=await sb.auth.signInWithPassword({email:acct,password:$('pw').value});
   $('go').disabled=false;
   if(error){ $('err').textContent='Wrong email or password.'; return; }
   after(data.session);
